@@ -4,7 +4,11 @@
 #
 class sentry::install
 {
-  $extra_python_reqs = $sentry::extra_python_reqs
+  if $sentry::memcached_enabled {
+    $sentry_python_reqs =flatten( [ 'python-memcached', $sentry::extra_python_reqs ] )
+  } else {
+    $sentry_python_reqs = $sentry::extra_python_reqs
+  }
 
   $virtualenv_path   = "${sentry::path}/virtualenv"
   $pip_command       = "${virtualenv_path}/bin/pip"

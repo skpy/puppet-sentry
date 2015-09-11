@@ -25,6 +25,31 @@ class sentry::params
       $postgres_packages = [
         'libpq-dev',
       ]
+
+      $daemonize = 'supervisord'
+    }
+    'RedHat': {
+      if $::operatingsystemmajrelease < 7 {
+        fail ('RedHat and related hosts require systemd, which is only available on version 7 or above.')
+      }
+
+      $packages = [
+        'libffi-devel',
+        'openssl-devel',
+        'libxml2-devel',
+        'libxslt-devel',
+        'zlib-devel',
+      ]
+
+      $mysql_packages = [
+        'mariadb-devel',
+      ]
+
+      $postgres_packages = [
+        'postgresql-devel'
+      ]
+
+      $daemonize = 'systemd'
     }
     default: {
       fail("${::operatingsystem} not supported")
@@ -43,7 +68,7 @@ class sentry::params
 
   # Config params
   $password_hash = 'pbkdf2_sha256$20000$9tjS6wreTjar$oAdyvcOd8HCMuBpxdyvv2Cg7xz6Ee1IVz30zYUA46Wg='
-  $secret_key    = 'bxXkluWCyi7vNDDALvCKOGCI2WEbohkpF9nVPnV6jWGB1grz5csT3g=='
+  $secret_key    = fqdn_rand_string(50)
   $user          = 'admin'
   $email         = 'root@localhost'
   $url           = 'http://localhost:9000'
@@ -68,8 +93,24 @@ class sentry::params
     'use_tls'   => false,
     'from_addr' => $email,
   }
+  $memcached_config_default = {
+    'host' => 'localhost',
+    'port' => 11211,
+  }
   $redis_config_default = {
     'host' => 'localhost',
     'port' => 6379,
+  }
+
+  $ssl           = false
+  $ssl_ca        = undef
+  $ssl_chain     = undef
+  $ssl_cert      = '/etc/pki/tls/certs/localhost.crt'
+  $ssl_key       = '/etc/pki/tls/private/localhost.key'
+
+  $wsgi = false
+  $wsgi_default = {
+    'wsgi_processes' => 1,
+    'wsgi_threads'   => 15,
   }
 }

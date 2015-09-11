@@ -1,42 +1,16 @@
 # == Class: sentry::service
 #
-# This class is meant to be called from sentry.
-# It ensures the service is running.
-#
-class sentry::service
-{
-  $command = join([
-    "${sentry::path}/virtualenv/bin/sentry",
-    "--config=${sentry::path}/sentry.conf.py"
-  ], ' ')
+# This class is a wrapper to better handle different Linux distributions.
+# Debian and related systems will use Supervisord to handle Sentry processes,
+# while RedHat and related systems will use systemd.
+class sentry::service {
 
-  Supervisord::Program {
-    ensure          => present,
-    directory       => $sentry::path,
-    user            => $sentry::owner,
-    autostart       => true,
-    redirect_stderr => true,
-  }
+  # note: we inspect the sentry::params value because there's no real reason
+  # to pass this parameter up into sentry::init.  This is not something
+  # likely to be overridden.
+  class { "sentry::service::${sentry::params::daemonize}": }
 
-  anchor { 'sentry::service::begin': } ->
-
-  supervisord::program {
-    'sentry-http':
-      command => "${command} start http",
-    ;
-    'sentry-worker':
-      command => "${command} celery worker -B",
-    ;
-  } ->
-
-  anchor { 'sentry::service::end': }
-
-  if $sentry::service_restart {
-    Anchor['sentry::service::begin'] ~>
-
-    supervisord::supervisorctl { 'sentry_reload':
-      command     => 'reload',
-      refreshonly => true,
-    }
+  if $sentry::wsgi {
+    class { 'sentry::service::wsgi': }
   }
 }

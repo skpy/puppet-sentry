@@ -98,6 +98,9 @@
 #   Whether to enable support for sending email notifications, defaults
 #   to `false`.
 #
+# [*memcached_enabled*]
+#   Whether to enable support for memcached, defaults to false.
+#
 # [*proxy_enabled*]
 #   Whether to enable support for serving behind a reverse proxy, defaults
 #   to `false`.
@@ -127,6 +130,13 @@
 #   [use_tls]   Whether to enable SMTP TLS (defaults to `false`)
 #   [from_addr] The from address (defaults to admin email)
 #
+# [*memcached_config*]
+#   A hash with the memcached configuration, only needed if enabled.
+#   Can include:
+#
+#   [host]      memcached host (defaults to `localhost`)
+#   [port]      memcached port (defaults to `11211`)
+#
 # [*redis_config*]
 #   A hash with the Redis configuration, only needed if enabled.
 #   Can include:
@@ -134,6 +144,26 @@
 #   [host]      Redis host (defaults to `localhost`)
 #   [port]      Redis port (defaults to `6379`)
 #
+# [*wsgi*]
+#   Boolean option, whether to enable an Apache mod_wsgi virtual host.
+#
+# [*wsgi_config*]
+#   A hash with the WSGI options to pass to mod_wsgi, if enabled.
+#
+# [*ssl*]
+#   Boolean option, whether to enable SSL for mod_wsgi.
+#
+# [*ssl_ca*]
+#   Filesystem path to SSL CA file; used with mod_wsgi.
+#
+# [*ssl_chain*]
+#   Filesystem path to SSL Chain file, if needed; used with mod_wsgi.
+#
+# [*ssl_cert*]
+#   Filesystem path to SSL certificate file; used with mod_wsgi.
+#
+# [*ssl_key*]
+#   Filesystem path to SSL certificate key file; used with mod_wsgi.
 # [*extra_config*]
 #   Extra configuration to append to Sentry config, can be array or string.
 #
@@ -142,38 +172,47 @@
 #
 class sentry(
   # Install params
-  $path              = $sentry::params::path,
-  $owner             = $sentry::params::owner,
-  $group             = $sentry::params::group,
-  $source_location   = $sentry::params::source_location,
-  $version           = $sentry::params::version,
-  $git_revision      = $sentry::params::git_revision,
-  $git_url           = $sentry::params::git_url,
-  $timeout           = $sentry::params::timeout,
-  $manage_git        = true,
-  $manage_nodejs     = true,
-  $manage_python     = true,
-  $extra_python_reqs = [],
+  $path                = $sentry::params::path,
+  $owner               = $sentry::params::owner,
+  $group               = $sentry::params::group,
+  $source_location     = $sentry::params::source_location,
+  $version             = $sentry::params::version,
+  $git_revision        = $sentry::params::git_revision,
+  $git_url             = $sentry::params::git_url,
+  $timeout             = $sentry::params::timeout,
+  $manage_git          = true,
+  $manage_nodejs       = true,
+  $manage_python       = true,
+  $extra_python_reqs   = [],
   # Config params
-  $password_hash   = $sentry::params::password_hash,
-  $secret_key      = $sentry::params::secret_key,
-  $user            = $sentry::params::user,
-  $email           = $sentry::params::email,
-  $url             = $sentry::params::url,
-  $host            = $sentry::params::host,
-  $port            = $sentry::params::port,
-  $workers         = $sentry::params::workers,
-  $database        = $sentry::params::database,
-  $beacon_enabled  = true,
-  $email_enabled   = false,
-  $proxy_enabled   = false,
-  $redis_enabled   = false,
-  $database_config = {},
-  $email_config    = {},
-  $redis_config    = {},
-  $extra_config    = [],
+  $password_hash       = $sentry::params::password_hash,
+  $secret_key          = $sentry::params::secret_key,
+  $user                = $sentry::params::user,
+  $email               = $sentry::params::email,
+  $url                 = $sentry::params::url,
+  $host                = $sentry::params::host,
+  $port                = $sentry::params::port,
+  $workers             = $sentry::params::workers,
+  $database            = $sentry::params::database,
+  $beacon_enabled      = true,
+  $email_enabled       = false,
+  $memcached_enabled   = false,
+  $proxy_enabled       = false,
+  $redis_enabled       = false,
+  $database_config     = {},
+  $email_config        = {},
+  $memcached_config    = {},
+  $redis_config        = {},
+  $wsgi                = $sentry::params::wsgi,
+  $wsgi_config         = {},
+  $ssl                 = $sentry::params::ssl,
+  $ssl_ca              = $sentry::params::ssl_ca,
+  $ssl_chain           = $sentry::params::ssl_chain,
+  $ssl_cert            = $sentry::params::ssl_cert,
+  $ssl_key             = $sentry::params::ssl_key,
+  $extra_config        = [],
   # Service params
-  $service_restart = true,
+  $service_restart     = true,
 ) inherits sentry::params {
 
   validate_re($source_location, ['^git$', '^pypi$'])
@@ -189,6 +228,10 @@ class sentry(
     $owner,
     $group,
     $host,
+    $ssl_ca,
+    $ssl_chain,
+    $ssl_cert,
+    $ssl_key,
   )
   validate_slength($secret_key, 160, 40)  # the maximum size of 160 is arbitrary
   validate_absolute_path($path)
@@ -201,6 +244,8 @@ class sentry(
     $proxy_enabled,
     $redis_enabled,
     $service_restart,
+    $wsgi,
+    $ssl,
   )
   validate_array(
     $extra_python_reqs,
@@ -208,7 +253,9 @@ class sentry(
   validate_hash(
     $database_config,
     $email_config,
+    $memcached_config,
     $redis_config,
+    $wsgi_config,
   )
   if !is_integer($timeout) { fail("Invalid timeout: ${timeout}") }
   if !is_integer($port) { fail("Invalid port: ${port}") }
@@ -226,6 +273,9 @@ class sentry(
   if ($proxy_enabled or $host != $sentry::params::host) and
       $secret_key == $sentry::params::secret_key {
     notify { 'Secret key unchanged from default, this is a security risk!': }
+  }
+  if $proxy_enabled and $wsgi {
+    fail('You cannot enable both a proxy and mod_wsgi!')
   }
   if $version and (
       versioncmp($version, '7.0.0') < 0 or versioncmp($version, '8.0.0') >= 0
