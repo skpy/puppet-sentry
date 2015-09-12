@@ -4,21 +4,20 @@
 #
 class sentry::config
 {
-  $password_hash        = $sentry::password_hash
-  $secret_key           = $sentry::secret_key
-  $user                 = $sentry::user
-  $email                = $sentry::email
-  $url                  = $sentry::url
-  $host                 = $sentry::host
-  $port                 = $sentry::port
-  $workers              = $sentry::workers
-  $database             = $sentry::database
-  $beacon_enabled       = $sentry::beacon_enabled
-  $email_enabled        = $sentry::email_enabled
-  $memcached_enabled    = $sentry::memcached_enabled
-  $proxy_enabled        = $sentry::proxy_enabled
-  $redis_enabled        = $sentry::redis_enabled
-  $extra_config         = $sentry::extra_config
+  $password          = $sentry::password
+  $secret_key        = $sentry::secret_key
+  $email             = $sentry::email
+  $url               = $sentry::url
+  $host              = $sentry::host
+  $port              = $sentry::port
+  $workers           = $sentry::workers
+  $database          = $sentry::database
+  $beacon_enabled    = $sentry::beacon_enabled
+  $email_enabled     = $sentry::email_enabled
+  $memcached_enabled = $sentry::memcached_enabled
+  $proxy_enabled     = $sentry::proxy_enabled
+  $redis_enabled     = $sentry::redis_enabled
+  $extra_config      = $sentry::extra_config
 
   $config = {
     'database' => merge(
@@ -47,16 +46,26 @@ class sentry::config
     mode    => '0640',
   } ->
 
-  file { "${sentry::path}/initial_data.json":
+  file { "${sentry::path}/.initialized":
     ensure  => present,
-    content => template('sentry/initial_data.json.erb'),
+    content => 'This file tells Puppet to avoid running an upgrade again on config change',
     owner   => $sentry::owner,
     group   => $sentry::group,
-    mode    => '0640',
   } ~>
 
   sentry::command { 'postconfig_upgrade':
-    command     => 'upgrade',
+    command     => 'upgrade --noinput',
+    refreshonly => true,
+  } ~>
+
+  sentry::command { 'create_superuser':
+    command     => join([
+      'createuser',
+      "--email='${email}'",
+      '--superuser',
+      "--password='${password}'",
+      '--no-input'
+    ], ' '),
     refreshonly => true,
   }
 }
