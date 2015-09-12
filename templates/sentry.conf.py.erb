@@ -54,18 +54,18 @@ SENTRY_BEACON = <%= @beacon_enabled.to_s.capitalize! %>
 ## Cache ##
 ###########
 
-<% if @redis_enabled -%>
-SENTRY_CACHE = 'sentry.cache.redis.RedisCache'
-<% else -%>
+<% if @memcached_enabled -%>
 SENTRY_CACHE = 'sentry.cache.django.DjangoCache'
-<%   if @memcached_enabled -%>
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
         'LOCATION': ['<%= @config['memcached']['host'] %>:<%= @config['memcached']['port'] %>'],
     }
 }
-<%   end -%>
+<% elsif @redis_enabled -%>
+SENTRY_CACHE = 'sentry.cache.redis.RedisCache'
+<% else -%>
+SENTRY_CACHE = 'sentry.cache.django.DjangoCache'
 <% end -%>
 
 <% if @redis_enabled -%>
