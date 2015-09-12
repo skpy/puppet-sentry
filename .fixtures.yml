@@ -17,7 +17,7 @@ fixtures:
       ref: '1.8.3'
     stdlib:
       repo: 'https://github.com/puppetlabs/puppetlabs-stdlib.git'
-      ref: '4.5.1'
+      ref: '4.6.0'
     supervisord:
       repo: 'https://github.com/ajcrowe/puppet-supervisord.git'
       ref: 'v0.5.1'
